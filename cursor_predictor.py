@@ -11,7 +11,7 @@ import numpy as np
 # 1. Model Definition
 # --------------------------
 class LSTMModel(nn.Module):
-    def __init__(self, input_size=2, hidden_size=32, num_layers=1):
+    def __init__(self, input_size=4, hidden_size=32, num_layers=1):
         super(LSTMModel, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -34,7 +34,7 @@ SEQ_LENGTH = 10
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 1
 TRAINING_STEPS = 5
-SLEEP_INTERVAL = 0.1
+SLEEP_INTERVAL = 0.05
 
 # --------------------------
 # 3. Initialize Model and Training Tools
@@ -47,6 +47,12 @@ hidden_state = model.init_hidden(BATCH_SIZE)
 # Buffers for recent data
 x_buffer = deque(maxlen=SEQ_LENGTH)
 y_buffer = deque(maxlen=SEQ_LENGTH)
+velocity_buffer = deque(maxlen=SEQ_LENGTH - 1)
+
+def calculate_velocity(x1, y1, x2, y2, dt):
+    if dt == 0:
+        return 0, 0
+    return (x2 - x1) / dt, (y2 - y1) / dt
 
 # Metrics storage
 actual_positions = []
@@ -60,10 +66,23 @@ start_time = time.time()
 # --------------------------
 print("Starting continuous capture and learning. Press Ctrl+C to stop.")
 try:
+    prev_x, prev_y = None, None
+    prev_time = None
+
     while True:
         # Capture current cursor position
         current_x, current_y = pyautogui.position()
-        elapsed_time = time.time() - start_time
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+
+        # Calculate velocity if previous position exists
+        if prev_x is not None and prev_time is not None:
+            vx, vy = calculate_velocity(prev_x, prev_y, current_x, current_y, current_time - prev_time)
+            velocity_buffer.append((vx, vy))
+
+        # Update previous position and time
+        prev_x, prev_y = current_x, current_y
+        prev_time = current_time
 
         # Append to buffers
         x_buffer.append(current_x)
@@ -73,9 +92,9 @@ try:
         actual_positions.append((current_x, current_y))
 
         # If buffer is full, predict and train
-        if len(x_buffer) == SEQ_LENGTH:
-            # Prepare input for the model
-            seq_input = torch.tensor([[ [x, y] for x, y in zip(x_buffer, y_buffer) ]],
+        if len(x_buffer) == SEQ_LENGTH and len(velocity_buffer) == SEQ_LENGTH - 1:
+            # Prepare input for the model (x, y, vx, vy)
+            seq_input = torch.tensor([[ [x, y, vx, vy] for (x, y), (vx, vy) in zip(zip(x_buffer, y_buffer), velocity_buffer) ]],
                                      dtype=torch.float32)
 
             # Predict next position

@@ -82,9 +82,3 @@ To run the program on startup:
 - Incorporate more advanced features like multi-user datasets.
 - Implement faster or alternative prediction models (e.g., Transformers).
 - Enhance visualization with more interactive tools.
-
-## License
-This project is licensed under the [MIT License](LICENSE).
-
-## Contact
-For questions or suggestions, please reach out at [your.email@example.com](mailto:your.email@example.com).

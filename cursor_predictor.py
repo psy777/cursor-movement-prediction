@@ -155,48 +155,52 @@ except KeyboardInterrupt:
 # --------------------------
 # 6. Plot the Results
 # --------------------------
-print("Plotting results...")
+try:
+    print("Plotting results...")
 
-# Ensure all arrays are the same length
-min_length = min(len(actual_positions), len(predicted_positions), len(timestamps))
-actual_positions = actual_positions[:min_length]
-predicted_positions = predicted_positions[:min_length]
-timestamps = timestamps[:min_length]
+    # Ensure all arrays are the same length
+    min_length = min(len(actual_positions), len(predicted_positions), len(timestamps))
+    actual_positions = actual_positions[:min_length]
+    predicted_positions = predicted_positions[:min_length]
+    timestamps = timestamps[:min_length]
 
-# Convert data to numpy arrays for easier plotting
-actual_positions = np.array(actual_positions)
-predicted_positions = np.array(predicted_positions)
-timestamps = np.array(timestamps)
+    # Convert data to numpy arrays for easier plotting
+    actual_positions = np.array(actual_positions)
+    predicted_positions = np.array(predicted_positions)
+    timestamps = np.array(timestamps)
 
-# Create a color gradient based on time
-colors = plt.cm.coolwarm((timestamps - timestamps.min()) / (timestamps.max() - timestamps.min()))
+    # Create a color gradient based on time
+    colors = plt.cm.coolwarm((timestamps - timestamps.min()) / (timestamps.max() - timestamps.min()))
 
-# Plot actual and predicted positions with a slider
-fig, ax = plt.subplots()
-plt.subplots_adjust(bottom=0.25)
-actual_line, = ax.plot(actual_positions[:, 0], actual_positions[:, 1], label="Actual", alpha=0.7, color='blue', linestyle='-', linewidth=1)
-predicted_line, = ax.plot(predicted_positions[:, 0], predicted_positions[:, 1], label="Predicted", alpha=0.7, color='orange', linestyle='--', linewidth=1)
+    # Plot actual and predicted positions with a slider
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(bottom=0.25)
+    actual_line, = ax.plot(actual_positions[:, 0], actual_positions[:, 1], label="Actual", alpha=0.7, color='blue', linestyle='-', linewidth=1)
+    predicted_line, = ax.plot(predicted_positions[:, 0], predicted_positions[:, 1], label="Predicted", alpha=0.7, color='orange', linestyle='--', linewidth=1)
 
-# Add highlight points
-highlight_actual, = ax.plot([], [], 'o', color='red', label='Highlighted Actual')
-highlight_predicted, = ax.plot([], [], 'o', color='green', label='Highlighted Predicted')
+    # Add highlight points
+    highlight_actual, = ax.plot([], [], 'o', color='red', label='Highlighted Actual')
+    highlight_predicted, = ax.plot([], [], 'o', color='green', label='Highlighted Predicted')
 
-# Add labels and legend
-plt.xlabel("X Position")
-plt.ylabel("Y Position")
-plt.title("Cursor Movement Prediction")
-plt.legend()
+    # Add labels and legend
+    plt.xlabel("X Position")
+    plt.ylabel("Y Position")
+    plt.title("Cursor Movement Prediction")
+    plt.legend()
 
-# Add a slider
-ax_slider = plt.axes([0.2, 0.1, 0.65, 0.03])
-time_slider = Slider(ax_slider, 'Time', timestamps.min(), timestamps.max(), valinit=timestamps.min(), valstep=(timestamps.max() - timestamps.min()) / len(timestamps))
+    # Add a slider
+    ax_slider = plt.axes([0.2, 0.1, 0.65, 0.03])
+    time_slider = Slider(ax_slider, 'Time', timestamps.min(), timestamps.max(), valinit=timestamps.min(), valstep=(timestamps.max() - timestamps.min()) / len(timestamps))
 
-def update(val):
-    time_idx = (np.abs(timestamps - time_slider.val)).argmin()
-    highlight_actual.set_data([actual_positions[time_idx, 0]], [actual_positions[time_idx, 1]])
-    highlight_predicted.set_data([predicted_positions[time_idx, 0]], [predicted_positions[time_idx, 1]])
-    fig.canvas.draw_idle()
+    def update(val):
+        time_idx = (np.abs(timestamps - time_slider.val)).argmin()
+        highlight_actual.set_data([actual_positions[time_idx, 0]], [actual_positions[time_idx, 1]])
+        highlight_predicted.set_data([predicted_positions[time_idx, 0]], [predicted_positions[time_idx, 1]])
+        fig.canvas.draw_idle()
 
-time_slider.on_changed(update)
+    time_slider.on_changed(update)
 
-plt.show()
+    plt.show()
+
+except KeyboardInterrupt:
+    print("Plotting interrupted. Exiting gracefully.")

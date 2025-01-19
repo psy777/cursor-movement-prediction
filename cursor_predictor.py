@@ -7,6 +7,7 @@ from collections import deque
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider
+import os
 
 # --------------------------
 # 1. Model Definition
@@ -36,6 +37,7 @@ LEARNING_RATE = 1e-3
 BATCH_SIZE = 1
 TRAINING_STEPS = 5
 SLEEP_INTERVAL = 0.05
+SAVE_INTERVAL = 60  # Save every 60 seconds
 
 # --------------------------
 # 3. Initialize Model and Training Tools
@@ -44,6 +46,16 @@ model = LSTMModel()
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 hidden_state = model.init_hidden(BATCH_SIZE)
+
+# Load saved model if available
+if os.path.exists('cursor_predictor.pth'):
+    print("Loading saved model...")
+    checkpoint = torch.load('cursor_predictor.pth')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    model.eval()
+else:
+    print("No saved model found. Starting fresh.")
 
 # Buffers for recent data
 x_buffer = deque(maxlen=SEQ_LENGTH)
@@ -61,6 +73,7 @@ predicted_positions = []
 timestamps = []
 
 start_time = time.time()
+last_save_time = time.time()
 
 # --------------------------
 # 5. Continuous Loop
@@ -120,11 +133,24 @@ try:
                 loss.backward()
                 optimizer.step()
 
+        # Save model periodically
+        if current_time - last_save_time >= SAVE_INTERVAL:
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }, 'cursor_predictor.pth')
+            print("Model saved.")
+            last_save_time = current_time
+
         # Sleep for interval
         time.sleep(SLEEP_INTERVAL)
 
 except KeyboardInterrupt:
-    pass
+    print("Stopping and saving the model...")
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+    }, 'cursor_predictor.pth')
 
 # --------------------------
 # 6. Plot the Results

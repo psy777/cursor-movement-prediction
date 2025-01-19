@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from collections import deque
+import matplotlib.pyplot as plt
+import numpy as np
 
 # --------------------------
 # 1. Model Definition
@@ -17,39 +19,41 @@ class LSTMModel(nn.Module):
         self.fc = nn.Linear(hidden_size, 2)  # Predict (x, y)
 
     def forward(self, x, hidden):
-        # x shape: (batch, seq_len, input_size=2)
         out, hidden = self.lstm(x, hidden)
-        # Use last time step's output for prediction
-        out = self.fc(out[:, -1, :])
+        out = self.fc(out[:, -1, :])  # Last time step output
         return out, hidden
 
     def init_hidden(self, batch_size=1):
-        # Hidden and cell state for LSTM
         return (torch.zeros(self.num_layers, batch_size, self.hidden_size),
                 torch.zeros(self.num_layers, batch_size, self.hidden_size))
 
 # --------------------------
 # 2. Hyperparameters
 # --------------------------
-SEQ_LENGTH = 10       # Number of timesteps used as input
+SEQ_LENGTH = 10
 LEARNING_RATE = 1e-3
-BATCH_SIZE = 1        # We'll train on one sequence at a time in this toy example
-TRAINING_STEPS = 5    # Number of mini-steps to train on new data
-SLEEP_INTERVAL = 0.1  # Seconds between cursor checks
+BATCH_SIZE = 1
+TRAINING_STEPS = 5
+SLEEP_INTERVAL = 0.1
 
 # --------------------------
-# 3. Initialize model, loss, optimizer
+# 3. Initialize Model and Training Tools
 # --------------------------
 model = LSTMModel()
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 hidden_state = model.init_hidden(BATCH_SIZE)
 
-# --------------------------
-# 4. Buffers to store recent data
-# --------------------------
+# Buffers for recent data
 x_buffer = deque(maxlen=SEQ_LENGTH)
 y_buffer = deque(maxlen=SEQ_LENGTH)
+
+# Metrics storage
+actual_positions = []
+predicted_positions = []
+timestamps = []
+
+start_time = time.time()
 
 # --------------------------
 # 5. Continuous Loop
@@ -57,53 +61,79 @@ y_buffer = deque(maxlen=SEQ_LENGTH)
 print("Starting continuous capture and learning. Press Ctrl+C to stop.")
 try:
     while True:
-        # 5.1 Capture current cursor position
+        # Capture current cursor position
         current_x, current_y = pyautogui.position()
-        
-        # Normalize or scale if needed. For simplicity, we use raw coordinates here.
+        elapsed_time = time.time() - start_time
+
+        # Append to buffers
         x_buffer.append(current_x)
         y_buffer.append(current_y)
-        
-        # 5.2 Once we have enough points in the buffer, train and predict
+
+        # Store actual positions and time
+        actual_positions.append((current_x, current_y))
+
+        # If buffer is full, predict and train
         if len(x_buffer) == SEQ_LENGTH:
-            # Prepare input for the model (shape: [batch_size, seq_len, input_size])
+            # Prepare input for the model
             seq_input = torch.tensor([[ [x, y] for x, y in zip(x_buffer, y_buffer) ]],
                                      dtype=torch.float32)
-            
-            # Predict next position before training (for demonstration)
+
+            # Predict next position
             model.eval()
             with torch.no_grad():
                 pred, hidden_state = model(seq_input, hidden_state)
-            
-            # Print prediction
             predicted_x, predicted_y = pred[0].tolist()
-            print(f"Predicted Next Position: ({predicted_x:.2f}, {predicted_y:.2f})")
-            
-            # Simulate target as the next actual coordinate you might receive 
-            # once time moves forward. Here we'll re-fetch cursor or you could
-            # wait for the next time step. This is just a simplified example
-            # for continuous training on the current target. 
-            #
-            # In a real-time setting, you'd do partial fitting as new data arrives
-            # and treat the *future* position as the label for the current sequence.
-            # For demonstration, let's train on the same last point to show the loop.
-            
+
+            # Store predicted positions and timestamp
+            predicted_positions.append((predicted_x, predicted_y))
+            timestamps.append(elapsed_time)  # Only log timestamp when a prediction is made
+
+            print(f"Actual: ({current_x}, {current_y}), Predicted: ({predicted_x:.2f}, {predicted_y:.2f})")
+
+            # Train model
             model.train()
             for _ in range(TRAINING_STEPS):
-                # Forward + Backward + Optimize
                 optimizer.zero_grad()
-                
-                # Use the final point in the sequence as the "label" 
-                # in this simplistic example
                 label = torch.tensor([ [current_x, current_y] ], dtype=torch.float32)
-                
-                output, hidden_state = model(seq_input, model.init_hidden(BATCH_SIZE))
+                output, _ = model(seq_input, model.init_hidden(BATCH_SIZE))
                 loss = criterion(output, label)
                 loss.backward()
                 optimizer.step()
-            
-        # Sleep briefly before checking again
+
+        # Sleep for interval
         time.sleep(SLEEP_INTERVAL)
 
 except KeyboardInterrupt:
     pass
+
+# --------------------------
+# 6. Plot the Results
+# --------------------------
+print("Plotting results...")
+
+# Ensure all arrays are the same length
+min_length = min(len(actual_positions), len(predicted_positions), len(timestamps))
+actual_positions = actual_positions[:min_length]
+predicted_positions = predicted_positions[:min_length]
+timestamps = timestamps[:min_length]
+
+# Convert data to numpy arrays for easier plotting
+actual_positions = np.array(actual_positions)
+predicted_positions = np.array(predicted_positions)
+timestamps = np.array(timestamps)
+
+# Create a color gradient based on time
+colors = plt.cm.coolwarm((timestamps - timestamps.min()) / (timestamps.max() - timestamps.min()))
+
+# Plot actual positions
+plt.scatter(actual_positions[:, 0], actual_positions[:, 1], c=colors, label="Actual", alpha=0.7)
+
+# Plot predicted positions
+plt.scatter(predicted_positions[:, 0], predicted_positions[:, 1], c=colors, label="Predicted", alpha=0.7, marker="x")
+
+# Add labels and legend
+plt.xlabel("X Position")
+plt.ylabel("Y Position")
+plt.title("Cursor Movement Prediction")
+plt.legend()
+plt.show()
